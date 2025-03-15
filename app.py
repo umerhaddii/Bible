@@ -18,9 +18,13 @@ from langchain_core.globals import set_llm_cache
 from langchain_core.caches import InMemoryCache
 from ui import BibleChatUI
 
-# Configure torch
-import torch
-torch.set_default_tensor_type(torch.FloatTensor)
+# Configure torch properly (replacing deprecated method)
+def configure_torch():
+    """Configure PyTorch settings with latest recommended methods."""
+    torch.set_default_dtype(torch.float32)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if hasattr(torch, 'set_default_device'):
+        torch.set_default_device(device)
 
 # Constants
 EMBEDDING_MODEL = 'BAAI/bge-small-en-v1.5'
@@ -54,12 +58,28 @@ def init_environment() -> None:
 def init_pinecone() -> PineconeVectorStore:
     """Initialize Pinecone vector store."""
     try:
-        pc = Pinecone(
-            api_key=os.getenv("PINECONE_API_KEY"),
-            environment="us-east-1"
-        )
-        index = pc.Index(PINECONE_INDEX_NAME)
+        # Get Pinecone credentials from secrets
+        api_key = st.secrets["PINECONE_API_KEY"]
+        environment = st.secrets["PINECONE_ENVIRONMENT"]
         
+        if not api_key or not environment:
+            raise ValueError("Missing Pinecone credentials")
+        
+        # Initialize Pinecone with proper error handling
+        pc = Pinecone(
+            api_key=api_key,
+            environment=environment
+        )
+        
+        # Test connection before proceeding
+        try:
+            index = pc.Index(PINECONE_INDEX_NAME)
+            # Verify index exists with a simple operation
+            index.describe_index_stats()
+        except Exception as e:
+            raise ConnectionError(f"Failed to connect to Pinecone index: {str(e)}")
+        
+        # Initialize embeddings
         embedding_function = HuggingFaceEmbeddings(
             model_name=EMBEDDING_MODEL,
             model_kwargs={'device': 'cuda' if torch.cuda.is_available() else 'cpu'}
@@ -71,6 +91,12 @@ def init_pinecone() -> PineconeVectorStore:
             text_key='text',
             namespace=PINECONE_NAMESPACE
         )
+    except ValueError as ve:
+        st.error(f"Configuration error: {str(ve)}")
+        st.stop()
+    except ConnectionError as ce:
+        st.error(f"Connection error: {str(ce)}")
+        st.stop()
     except Exception as e:
         st.error(f"Failed to initialize Pinecone: {str(e)}")
         st.stop()
@@ -119,39 +145,39 @@ def process_query(query: str,
 
 def main():
     """Main application entry point."""
-    # Initialize UI
-    ui = BibleChatUI()
-    ui.setup_ui()
-    
     try:
-        # Initialize components and system prompt
+        # Initialize UI and components
+        ui = BibleChatUI()
+        ui.setup_ui()
+        
+        # Initialize model components
         vectorstore = init_pinecone()
         retriever = vectorstore.as_retriever(search_kwargs={"k": RETRIEVER_K})
         
-        # Load system prompt
         try:
             system_prompt = Path("system_prompt.txt").read_text()
         except FileNotFoundError:
             ui.show_error("System prompt file not found!")
             st.stop()
         
-        # Initialize LLM and cache
+        # Initialize LLM and chains
         llm = init_llm(system_prompt)
         set_llm_cache(InMemoryCache())
-        
-        # Initialize chains
         refinement_chain, retrieval_chain = initialize_chains(llm, retriever)
         
-        # Display chat history
-        ui.display_chat_history()
-        
-        # Get user input and process
-        if prompt := ui.get_user_input():
-            ui.update_chat("user", prompt)
-            
-            with ui.show_spinner("Finding answer..."):
-                response = process_query(prompt, refinement_chain, retrieval_chain)
-                ui.update_chat("assistant", response)
+        # Handle new user input only
+        user_input = ui.get_user_input()
+        if user_input:
+            # Process only if it's a new message
+            if not st.session_state.messages or user_input != st.session_state.messages[-1].get("content", ""):
+                # Add user message immediately
+                ui.update_chat("user", user_input)
+                
+                # Get and display response
+                with st.spinner("Thinking..."):
+                    response = process_query(user_input, refinement_chain, retrieval_chain)
+                    ui.update_chat("assistant", response)
+                
                 st.rerun()
                 
     except Exception as e:
