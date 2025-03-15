@@ -26,14 +26,15 @@ class BibleChatUI:
 
     def setup_ui(self):
         """Setup the main UI components."""
-        # Main title and greeting
-        st.title("Bible Assistant")
-        st.markdown("")
-        st.markdown(f"{self.get_greeting()}! How can I help you today?")
+        # Container for header
+        with st.container():
+            st.title("Bible Assistant")
+            st.markdown(f"{self.get_greeting()}! How can I help you today?")
         
-        # Sidebar with subheader, New Chat button, and user guide
+        # Sidebar setup
         with st.sidebar:
-            st.markdown("<h2 style='font-size:24px;'>Talk with Holy Bible!</h2>", unsafe_allow_html=True)
+            st.markdown("<h2 style='font-size:24px;'>Talk with Holy Bible!</h2>", 
+                       unsafe_allow_html=True)
             st.markdown("")
             if st.button("New Chat", use_container_width=True):
                 st.session_state.messages = []
@@ -63,24 +64,41 @@ class BibleChatUI:
                 - Explain the Lord's Prayer
                 """)
 
-    def display_chat_history(self):
-        """Display chat messages from history."""
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
+        # Single container for all chat content
+        with st.container():
+            # Display chat history
+            self.display_chat_history()
+            
+            # Chat input at bottom
+            self.query_input = st.chat_input(
+                placeholder="Ask a question about the Bible...",
+                key="chat_input"
+            )
 
     def get_user_input(self) -> str:
         """Get user input from chat interface."""
-        return st.chat_input("Ask a question about the Bible...")
+        return self.query_input if self.query_input else None
+
+    def display_chat_history(self):
+        """Display chat messages from history."""
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+            
+        # Display only from session state
+        for msg in st.session_state.messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
 
     def update_chat(self, role: str, content: str):
         """Update chat history with new message."""
-        st.session_state.messages.append({"role": role, "content": content})
-
-    def display_response(self, response: str):
-        """Display assistant response in chat."""
-        with st.chat_message("assistant"):
-            st.markdown(response)
+        # Prevent duplicate messages
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+            
+        # Only add if not already present
+        msg = {"role": role, "content": content}
+        if msg not in st.session_state.messages:
+            st.session_state.messages.append(msg)
 
     def show_error(self, error: str):
         """Display error message."""
