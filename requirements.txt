@@ -2,7 +2,7 @@
 streamlit==1.31.0
 python-dotenv==1.0.0
 
-# LangChain and related (updated for latest compatibility)
+# LangChain and related
 langchain==0.1.11
 langchain-core==0.1.22
 langchain-community==0.0.21
@@ -13,13 +13,12 @@ langchain-huggingface==0.0.9
 
 # Vector store and embeddings
 pinecone-client==3.0.1
-sentence-transformers==2.6.0  # Updated to match langchain-huggingface requirement
+sentence-transformers==2.2.2
 
-# Machine Learning
-torch==2.2.0
-torchvision==0.17.0
-torchaudio==2.2.0
---extra-index-url https://download.pytorch.org/whl/cpu
+# Machine Learning (CPU only versions)
+torch==2.1.2+cpu
+torchvision==0.16.2+cpu
+--find-links https://download.pytorch.org/whl/torch_stable.html
 
 # Utilities
 typing-extensions==4.8.0
