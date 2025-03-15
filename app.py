@@ -105,7 +105,9 @@ def init_llm(system_prompt: str) -> ChatMistralAI:
     """Initialize the language model."""
     return ChatMistralAI(
         model="mistral-large-latest",
-        system_message=system_prompt
+        model_kwargs={"system_message": system_prompt},
+        temperature=0.7,
+        max_tokens=2048
     )
 
 @st.cache_data(show_spinner=False)
