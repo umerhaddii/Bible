@@ -32,9 +32,6 @@ PINECONE_INDEX_NAME = "data"
 PINECONE_NAMESPACE = "text_chunks"
 RETRIEVER_K = 4
 
-# Load environment variables
-load_dotenv()
-
 def init_environment() -> None:
     """Initialize environment variables."""
     required_vars = [
@@ -43,17 +40,22 @@ def init_environment() -> None:
         "PINECONE_ENVIRONMENT"
     ]
     
-    # Check for variables in Streamlit secrets
-    for var in required_vars:
-        if var not in st.secrets:
-            st.error(f"Missing required secret: {var}")
-            st.info("Please add the required secrets in Streamlit dashboard.")
-            st.stop()
+    # First try Streamlit secrets
+    if st._is_running_with_streamlit:
+        for var in required_vars:
+            if var not in st.secrets:
+                st.error(f"Missing required secret: {var}")
+                st.info("Please add secrets in Streamlit Cloud dashboard.")
+                st.stop()
+        return
 
-    # Set environment variables from Streamlit secrets
-    os.environ["MISTRAL_API_KEY"] = st.secrets["MISTRAL_API_KEY"]
-    os.environ["PINECONE_API_KEY"] = st.secrets["PINECONE_API_KEY"]
-    os.environ["PINECONE_ENVIRONMENT"] = st.secrets["PINECONE_ENVIRONMENT"]
+    # Fallback to local .env for development
+    load_dotenv()
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        st.error(f"Missing environment variables: {', '.join(missing_vars)}")
+        st.info("Please check your .env file.")
+        st.stop()
 
 def init_pinecone() -> PineconeVectorStore:
     """Initialize Pinecone vector store."""
